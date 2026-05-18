@@ -1,0 +1,4 @@
+dataset_path: "HuggingFaceH4/MATH-500"
+test_split: test
+doc_to_text: "{{problem}}"
+doc_to_target: "{{answer}}"

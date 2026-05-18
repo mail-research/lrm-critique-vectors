@@ -1,0 +1,11 @@
+task: ""  # Will be set dynamically
+num_fewshot: 0
+output_type: "generate_until"
+target_delimiter: ""
+generation_kwargs:
+  do_sample: false
+  max_gen_toks: 16384
+  temperature: 0.0
+  until: ["<GENERATE_FULL_RESPONSE>"]
+dataset_kwargs:
+  trust_remote_code: true

@@ -1,0 +1,69 @@
+import torch
+import torch.nn as nn
+from {{ causal_lm_module_name }} import {{ causal_lm_class_name }}
+{% if base_model_class_name and base_model_module_name %}from {{ base_model_module_name }} import {{ base_model_class_name }}
+{% endif %}
+{% macro bias_adder() -%}
+# Locate transformer block layers
+for path in [
+    ('layers', None),
+    ('h', None),
+    ('model', 'layers'),
+    ('transformer', 'h'),
+    ('model', 'h'),
+    ('transformer', 'layers'),
+]:
+    target = getattr(base_model, path[0], None)
+    block_modules = getattr(target, path[1], None) if path[1] else target
+    if block_modules is not None:
+        break
+else:
+    raise Exception("Could not locate transformer layers.")
+# Ensure all MLP down_proj layers have bias
+for layer in block_modules:
+    mlp = getattr(layer, 'mlp', None)
+    if not mlp or not hasattr(mlp, 'down_proj'):
+        continue
+    proj = mlp.down_proj
+    if isinstance(proj, torch.nn.Linear):
+        if not hasattr(proj, 'bias') or proj.bias is None:
+            proj.bias = torch.nn.Parameter(torch.zeros(
+                proj.out_features,
+                device=proj.weight.device,
+                dtype=proj.weight.dtype
+            ))
+{%- endmacro %}
+{% if custom_base_model_class_name and base_model_class_name %}
+class {{ custom_base_model_class_name }}({{ base_model_class_name }}):
+    """A custom base model class with bias-enabled MLP down_proj layers."""
+    def __init__(self, config):
+        super().__init__(config)
+        base_model = self
+        {{ bias_adder() | indent(8) }}
+        if hasattr(self, 'post_init'):
+            self.post_init()
+
+    @classmethod
+    def from_pretrained(cls, pretrained_model_name_or_path, *model_args, **kwargs):
+        return super({{ custom_base_model_class_name }}, cls).from_pretrained(
+            pretrained_model_name_or_path, *model_args, **kwargs
+        )
+{% endif %}
+
+class {{ custom_causal_lm_class_name }}({{ causal_lm_class_name }}):
+    """A custom model class with bias-enabled MLP down_proj layers."""
+    def __init__(self, config):
+        super().__init__(config)
+        {% if base_model_prefix %}
+        base_model = getattr(self, "{{ base_model_prefix }}")
+        {% else %}
+        base_model = self
+        {% endif %}
+        {{ bias_adder() | indent(8) }}
+        self.tie_weights()
+
+    @classmethod
+    def from_pretrained(cls, pretrained_model_name_or_path, *model_args, **kwargs):
+        return super({{ custom_causal_lm_class_name }}, cls).from_pretrained(
+            pretrained_model_name_or_path, *model_args, **kwargs
+        )

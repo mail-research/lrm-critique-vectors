@@ -1,0 +1,54 @@
+# Byte-compiled / optimized / DLL files
+__pycache__/
+*.py[cod]
+*$py.class
+
+# C extensions
+*.so
+
+# Virtual environments
+.Python
+env/
+venv/
+ENV/
+
+# Distribution / packaging
+*.egg-info/
+dist/
+build/
+
+# Logs and temp files
+*.log
+*.tmp
+*.bak
+*.pid
+*.seed
+*.orig
+*.backup
+
+# IDEs and editors
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Data and results
+results/
+!data/*.csv
+!data/*.png
+
+# Misc
+*.pt
+*.pth
+*.txt
+
+# Library:
+src/lm-eval
+
+.env.local
+.env*.local

@@ -1,0 +1,6 @@
+dataset_path: "cais/mmlu"
+dataset_name: "elementary_mathematics"
+test_split: test
+doc_to_text: "{{question.strip()}}\nA. {{choices[0]}}\nB. {{choices[1]}}\nC. {{choices[2]}}\nD. {{choices[3]}}\nAnswer:"
+doc_to_target: "{{['A', 'B', 'C', 'D'][answer]}}"
+

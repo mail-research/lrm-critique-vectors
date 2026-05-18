@@ -1,0 +1,4 @@
+dataset_path: "yentinglin/aime_2025"
+test_split: train
+doc_to_text: "{{problem.strip()}}\n\nAnswer:"
+doc_to_target: "{{answer}}"

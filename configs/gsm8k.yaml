@@ -1,0 +1,5 @@
+dataset_path: "gsm8k"
+dataset_name: "main"
+test_split: test
+doc_to_text: "Question: {{question}}\nAnswer:"
+doc_to_target: "{{answer}}"

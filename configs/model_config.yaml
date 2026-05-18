@@ -1,0 +1,15 @@
+- names: ["deepseek"]
+  format:
+    prefix: "<\uff5cAssistant\uff5c>"
+    think_start: "<think>\n"
+    think_end: "\n</think>\n\n"
+- names: ["qwen3"]
+  format:
+    prefix: "<|im_start|>assistant\n"
+    think_start: "<think>\n"
+    think_end: "\n</think>\n\n"
+- names: ["gpt"]
+  format:
+    prefix: "<|start|>assistant"
+    think_start: "<|channel|>analysis<|message|>"
+    think_end: "<|end|><|start|>assistant<|channel|>final<|message|>"

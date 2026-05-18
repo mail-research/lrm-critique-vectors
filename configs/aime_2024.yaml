@@ -1,0 +1,4 @@
+dataset_path: "Maxwell-Jia/AIME_2024"
+test_split: train
+doc_to_text: "{{Problem.strip()}}\n\nAnswer:"
+doc_to_target: "{{Answer}}"

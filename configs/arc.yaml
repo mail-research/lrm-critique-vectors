@@ -1,0 +1,6 @@
+dataset_path: "allenai/ai2_arc"
+dataset_name: "ARC-Challenge"
+test_split: "test"
+doc_to_text: "Given the following question and candidate answers, choose the best answer.\nQuestion: {{question.strip()}}\n{% for i in range(choices.text|length) %}{{ \"ABCD\"[i] }}. {{choices.text[i]}}\n{% endfor %}\nYour response should end with 'The best answer is [the_answer_letter]' where [the_answer_letter] is one of A, B, C or D."
+gen_prefix: "The best answer is"
+doc_to_target: "{{ 'ABCD'[answerKey|int - 1] if answerKey|string in '1234' else answerKey }}"

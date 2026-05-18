@@ -1,0 +1,6 @@
+dataset_path: Wanfq/gpqa
+dataset_name: gpqa_diamond
+test_split: train
+doc_to_text: "What is the correct answer to this question:{{Question}}\nChoices:\n(A) {{choice1}}\n(B) {{choice2}}\n(C) {{choice3}}\n(D) {{choice4}}\nAnswer:"
+doc_to_target: answer
+
