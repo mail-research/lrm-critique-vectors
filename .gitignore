@@ -46,6 +46,7 @@ results/
 *.pt
 *.pth
 *.txt
+!requirements.txt
 
 # Library:
 src/lm-eval
