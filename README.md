@@ -3,6 +3,7 @@
 # Decoding the Critique Mechanism in Large Reasoning Models
 
 [![Paper](https://img.shields.io/badge/arXiv-2603.16331-b31b1b.svg)](https://arxiv.org/abs/2603.16331)
+[![Project Page](https://img.shields.io/badge/Project-Page-2ea44f.svg)](https://mail-research.github.io/lrm-critique-vectors/)
 [![License](https://img.shields.io/badge/License-MIT-blue.svg)](./LICENSE)
 
 </div>

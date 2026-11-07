@@ -1,0 +1,504 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Decoding the Critique Mechanism in Large Reasoning Models</title>
+    <meta name="description" content="Large reasoning models silently recover from injected errors in their chain-of-thought. We extract a critique vector that represents this hidden ability and steer it to improve error detection and test-time scaling.">
+    <meta property="og:type" content="website">
+    <meta property="og:url" content="https://mail-research.github.io/lrm-critique-vectors/">
+    <meta property="og:title" content="Decoding the Critique Mechanism in Large Reasoning Models">
+    <meta property="og:description" content="LRMs hiddenly recover from errors in their CoT. We find a critique vector behind this and steer it.">
+    <meta property="og:image" content="https://mail-research.github.io/lrm-critique-vectors/assets/figures/main_figure.png">
+    <meta name="twitter:card" content="summary_large_image">
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>🔍</text></svg>">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Google+Sans:wght@400;500;700&family=Google+Sans+Mono&display=swap" rel="stylesheet">
+    <script>
+        window.MathJax = { tex: { inlineMath: [['$', '$'], ['\\(', '\\)']] }, chtml: { scale: 0.95 } };
+    </script>
+    <script defer src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/3.2.2/es5/tex-chtml.min.js"></script>
+    <style>
+        :root {
+            --blue: #1a73e8;
+            --blue-dark: #185abc;
+            --blue-tint: #e8f0fe;
+            --ink: #202124;
+            --text: #333;
+            --muted: #5f6368;
+            --card: #f8f9fa;
+            --line: #e8eaed;
+            --good: #188038;
+            --good-tint: #e6f4ea;
+            --bad: #d93025;
+            --bad-tint: #fce8e6;
+        }
+        * { box-sizing: border-box; }
+        body {
+            font-family: 'Google Sans', Arial, sans-serif;
+            line-height: 1.6;
+            color: var(--text);
+            max-width: 960px;
+            margin: 40px auto;
+            padding: 0 20px;
+            background-color: #fff;
+        }
+        a { color: var(--blue); }
+        h1, h2, h3 { color: var(--ink); font-weight: 500; }
+        h1 { font-size: 2.5em; line-height: 1.25; text-align: center; margin: 0 0 0.5em; }
+        h2 { font-size: 1.5em; margin: 0 0 0.8em; }
+        h3 { font-size: 1.1em; margin: 1.6em 0 0.4em; }
+
+        /* ---------- Title block ---------- */
+        .authors { text-align: center; margin-bottom: 10px; color: #3c4043; }
+        .authors span { display: inline-block; margin: 0 6px; white-space: nowrap; }
+        .affiliations { text-align: center; font-size: 0.9em; color: var(--muted); margin-bottom: 26px; }
+        .venue { text-align: center; font-size: 1.4em; color: var(--blue); font-weight: 500; margin-bottom: 26px; }
+        .links { text-align: center; margin-bottom: 40px; }
+        .links a {
+            display: inline-flex; align-items: center; gap: 8px;
+            margin: 4px 8px; padding: 10px 22px;
+            background-color: var(--blue); color: #fff; text-decoration: none;
+            border-radius: 8px; font-weight: 500;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            transition: background-color 0.3s, box-shadow 0.3s;
+        }
+        .links a:hover { background-color: var(--blue-dark); box-shadow: 0 4px 8px rgba(0,0,0,0.2); }
+        .links svg { width: 1em; height: 1em; fill: currentColor; }
+
+        /* ---------- Cards ---------- */
+        .card {
+            background-color: var(--card);
+            padding: 30px;
+            border-radius: 30px;
+            border: 1px solid var(--line);
+            margin-bottom: 30px;
+        }
+        .card p, .card li { text-align: justify; font-size: 0.95em; }
+        .card ul { padding-left: 1.3em; }
+        .card li { margin-bottom: 0.4em; }
+        .tldr { font-size: 1.02em !important; text-align: left !important; }
+
+        .fig {
+            background-color: #fff;
+            padding: 12px;
+            border-radius: 24px;
+            border: 1px solid var(--line);
+            margin: 18px 0 8px;
+        }
+        .fig img { display: block; width: 100%; height: auto; }
+        .fig.narrow img { max-width: 640px; margin: 0 auto; }
+        .caption { font-size: 0.85em !important; color: var(--muted); text-align: left !important; margin-top: 6px; }
+
+        /* ---------- Key numbers ---------- */
+        .stats { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; margin: 18px 0; }
+        .stat {
+            background: #fff; border: 1px solid var(--line); border-radius: 18px;
+            padding: 14px 10px; text-align: center;
+        }
+        .stat .num { display: block; font-size: 1.7em; font-weight: 500; color: var(--blue); line-height: 1.2; }
+        .stat .lbl { display: block; font-size: 0.82em; color: var(--muted); margin-top: 4px; }
+
+        /* ---------- Tabs (styled like D4RT's selector buttons) ---------- */
+        .tabs { display: flex; gap: 8px; margin: 18px 0 0; flex-wrap: wrap; }
+        .tabs button {
+            flex: 1 1 140px;
+            padding: 7px 12px;
+            border: 3px solid var(--blue); border-radius: 6px;
+            background-color: var(--blue); color: #fff;
+            font: inherit; font-size: 0.9em; font-weight: 500;
+            cursor: pointer; box-shadow: 0 1px 2px rgba(0,0,0,0.1);
+            transition: background-color 0.3s, color 0.3s;
+        }
+        .tabs button:not(.selected):hover { background-color: var(--blue-dark); border-color: var(--blue-dark); }
+        .tabs button.selected { background-color: #fff; color: var(--blue); }
+        .tabs button.selected:hover { background-color: var(--blue-tint); }
+        .tab-panel { display: none; }
+        .tab-panel.active { display: block; }
+
+        /* ---------- Tables ---------- */
+        .table-wrap {
+            background: #fff; border: 1px solid var(--line); border-radius: 20px;
+            overflow-x: auto; margin: 16px 0 6px;
+        }
+        table { border-collapse: collapse; width: 100%; font-size: 0.88em; white-space: nowrap; }
+        th, td { padding: 8px 12px; text-align: center; }
+        thead th { font-weight: 500; color: var(--ink); border-bottom: 1px solid var(--line); }
+        thead tr:first-child th { padding-top: 12px; }
+        tbody tr:nth-child(even) { background-color: #fafbfc; }
+        tbody tr:last-child td { padding-bottom: 12px; }
+        td:first-child, th:first-child { text-align: left; padding-left: 18px; }
+        th.group { border-bottom: 1px solid var(--line); }
+        td.best { font-weight: 700; color: var(--ink); }
+        td.hl { background-color: var(--blue-tint); }
+        .sep { border-left: 1px solid var(--line); }
+
+        /* ---------- Qualitative example ---------- */
+        .qual-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+        .qual {
+            background: #fff; border: 1px solid var(--line); border-radius: 18px;
+            padding: 14px 18px; font-size: 0.88em; line-height: 1.55; margin-bottom: 12px;
+        }
+        .qual .head { font-weight: 500; color: var(--ink); display: flex; align-items: center; gap: 8px; margin-bottom: 6px; }
+        .qual .dot { width: 10px; height: 10px; border-radius: 50%; background: var(--muted); flex-shrink: 0; }
+        .qual.baseline .dot { background: var(--bad); }
+        .qual.positive .dot { background: var(--good); }
+        .qual .elide { color: #9aa0a6; }
+        .qual .outcome { display: block; margin-top: 8px; font-weight: 500; }
+        .qual.baseline .outcome { color: var(--bad); }
+        .qual.positive .outcome { color: var(--good); }
+        mark.err { background: var(--bad-tint); color: inherit; padding: 0 3px; border-radius: 3px; }
+        mark.fix { background: var(--good-tint); color: inherit; padding: 0 3px; border-radius: 3px; }
+
+        /* ---------- Equations ---------- */
+        .eq { overflow-x: auto; overflow-y: hidden; }
+
+        /* ---------- Citation ---------- */
+        .cite-wrap { position: relative; }
+        .card pre {
+            white-space: pre-wrap; word-wrap: break-word;
+            background-color: #fff; border: 1px solid var(--line); border-radius: 24px;
+            padding: 20px; margin: 0; font-size: 0.85em; color: #3c4043;
+            font-family: 'Google Sans Mono', ui-monospace, Menlo, Consolas, monospace;
+        }
+        .copy-btn {
+            position: absolute; top: 12px; right: 12px;
+            border: 1px solid var(--line); background: #fff; color: var(--blue);
+            border-radius: 6px; padding: 3px 10px; font: inherit; font-size: 0.8em; cursor: pointer;
+        }
+        .copy-btn:hover { background: var(--blue-tint); }
+
+        /* ---------- Collapsible (click the heading) ---------- */
+        .collapsible h2 {
+            cursor: pointer; user-select: none; position: relative;
+            margin-bottom: 0; padding-right: 30px;
+        }
+        .collapsible h2::after {
+            content: '›'; position: absolute; right: 0; top: 50%;
+            font-size: 1.6em; color: var(--muted); line-height: 1;
+            transform: translateY(-50%) rotate(0deg); transition: transform 0.2s ease-out;
+        }
+        .collapsible.active h2 { margin-bottom: 0.8em; }
+        .collapsible.active h2::after { transform: translateY(-50%) rotate(90deg); }
+        .collapsible .collapsible-content { display: none; }
+        .collapsible.active .collapsible-content { display: block; }
+
+        footer { text-align: center; font-size: 0.8em; color: var(--muted); margin-top: 40px; }
+
+        @media (max-width: 600px) {
+            body { margin: 20px auto; padding: 0 15px; }
+            h1 { font-size: 1.5em; }
+            h2 { font-size: 1.3em; }
+            .venue { font-size: 1.15em; }
+            .authors { font-size: 0.8em; }
+            .authors span { margin: 0 3px; }
+            .affiliations { font-size: 0.72em; }
+            .links a { padding: 8px 15px; margin: 4px; }
+            .card { padding: 20px; border-radius: 20px; }
+            .card p, .card li { font-size: 0.88em; text-align: left; }
+            .fig { border-radius: 16px; padding: 8px; }
+            .table-wrap { border-radius: 14px; }
+            .card pre { border-radius: 16px; font-size: 0.75em; padding: 15px; }
+            .stats, .qual-grid { grid-template-columns: 1fr; }
+        }
+    </style>
+</head>
+<body>
+
+    <h1>Decoding the Critique Mechanism in Large Reasoning Models</h1>
+
+    <div class="authors">
+        <span>Hoang Phan<sup>1</sup></span>
+        <span>Quang H. Nguyen<sup>1</sup></span>
+        <span>Hung T. Q. Le<sup>1</sup></span>
+        <span>Xiusi Chen<sup>2</sup></span>
+        <span>Heng Ji<sup>2</sup></span>
+        <span>Khoa D. Doan<sup>1</sup></span>
+    </div>
+    <div class="affiliations">
+        <sup>1</sup>VinUni-Illinois Smart Health Center, VinUniversity &nbsp;&nbsp; <sup>2</sup>University of Illinois Urbana-Champaign
+        <br>Correspondence: <a href="mailto:khoa.dd@vinuni.edu.vn">khoa.dd@vinuni.edu.vn</a>
+    </div>
+
+    <div class="venue"><a href="https://neurips.cc/virtual/2026/loc/sydney/poster/154405" target="_blank" rel="noopener" style="color: inherit; text-decoration: none;">NeurIPS 2026</a></div>
+
+    <div class="links">
+        <a href="https://arxiv.org/pdf/2603.16331" target="_blank" rel="noopener">
+            <svg viewBox="0 0 384 512" aria-hidden="true"><path d="M64 0C28.7 0 0 28.7 0 64v384c0 35.3 28.7 64 64 64h256c35.3 0 64-28.7 64-64V160H256c-17.7 0-32-14.3-32-32V0H64zm192 0v128h128L256 0z"/></svg>pdf</a>
+        <a href="https://arxiv.org/abs/2603.16331" target="_blank" rel="noopener">
+            <svg viewBox="0 0 512 512" aria-hidden="true"><path d="M352 0c-12.9 0-24.6 7.8-29.6 19.8s-2.2 25.7 6.9 34.9L370.7 96 201.4 265.4c-12.5 12.5-12.5 32.8 0 45.3s32.8 12.5 45.3 0L416 141.3l41.4 41.4c9.2 9.2 22.9 11.9 34.9 6.9S512 172.9 512 160V32c0-17.7-14.3-32-32-32H352zM80 32C35.8 32 0 67.8 0 112v320c0 44.2 35.8 80 80 80h320c44.2 0 80-35.8 80-80V320c0-17.7-14.3-32-32-32s-32 14.3-32 32v112c0 8.8-7.2 16-16 16H80c-8.8 0-16-7.2-16-16V112c0-8.8 7.2-16 16-16h112c17.7 0 32-14.3 32-32s-14.3-32-32-32H80z"/></svg>arXiv</a>
+        <a href="https://github.com/mail-research/lrm-critique-vectors" target="_blank" rel="noopener">
+            <svg viewBox="0 0 496 512" aria-hidden="true"><path d="M165.9 397.4c0 2-2.3 3.6-5.2 3.6-3.3.3-5.6-1.3-5.6-3.6 0-2 2.3-3.6 5.2-3.6 3-.3 5.6 1.3 5.6 3.6zm-31.1-4.5c-.7 2 1.3 4.3 4.3 4.9 2.6 1 5.6 0 6.2-2s-1.3-4.3-4.3-5.2c-2.6-.7-5.5.3-6.2 2.3zm44.2-1.7c-2.9.7-4.9 2.6-4.6 4.9.3 2 2.9 3.3 5.9 2.6 2.9-.7 4.9-2.6 4.6-4.6-.3-1.9-3-3.2-5.9-2.9zM244.8 8C106.1 8 0 113.3 0 252c0 110.9 69.8 205.8 169.5 239.2 12.8 2.3 17.3-5.6 17.3-12.1 0-6.2-.3-40.4-.3-61.4 0 0-70 15-84.7-29.8 0 0-11.4-29.1-27.8-36.6 0 0-22.9-15.7 1.6-15.4 0 0 24.9 2 38.6 25.8 21.9 38.6 58.6 27.5 72.9 20.9 2.3-16 8.8-27.1 16-33.7-55.9-6.2-112.3-14.3-112.3-110.5 0-27.5 7.6-41.3 23.6-58.9-2.6-6.5-11.1-33.3 2.6-67.9 20.9-6.5 69 27 69 27 20-5.6 41.5-8.5 62.8-8.5s42.8 2.9 62.8 8.5c0 0 48.1-33.6 69-27 13.7 34.7 5.2 61.4 2.6 67.9 16 17.7 25.8 31.5 25.8 58.9 0 96.5-58.9 104.2-114.8 110.5 9.2 7.9 17 22.9 17 46.4 0 33.7-.3 75.4-.3 83.6 0 6.5 4.6 14.4 17.3 12.1C428.2 457.8 496 362.9 496 252 496 113.3 383.5 8 244.8 8z"/></svg>code</a>
+    </div>
+
+    <!-- Overview -->
+    <div class="card">
+        <h2>Overview</h2>
+        <p class="tldr">
+            Large reasoning models often reach the right answer even when an injected error corrupts their entire chain-of-thought, and they never say they fixed anything. We trace this <b>hidden critique ability</b> to a single direction in activation space, the <b>critique vector</b>. Steering along it improves error detection and test-time scaling with no extra training.
+        </p>
+        <div class="fig narrow">
+            <img src="assets/figures/main_figure.png" alt="Hidden self-correction example: an injected arithmetic error propagates through the reasoning, yet the final answer is correct.">
+        </div>
+        <p class="caption">
+            Hidden self-correction in R1-32B. <b>Left:</b> original, correct reasoning. <b>Right:</b> an injected error ($3+4=6$) carries through to a wrong thinking conclusion (\$20), yet the model still gives the correct final answer (\$18).
+        </p>
+    </div>
+
+    <!-- Abstract -->
+    <div class="card">
+        <h2>Abstract</h2>
+        <p>
+            Large Reasoning Models (LRMs) exhibit backtracking and self-verification mechanisms that enable them to revise intermediate steps and reach correct solutions, yielding strong performance on complex logical benchmarks. We hypothesize that such behaviors are beneficial only when the model has sufficiently strong &ldquo;critique&rdquo; ability to detect its own mistakes. This work systematically investigates how current LRMs recover from errors by inserting arithmetic mistakes in their intermediate reasoning steps. Notably, we discover a peculiar yet important phenomenon: despite the error propagating throughout the entire chain-of-thought (CoT) without any verbalized correction, the model still reaches the correct final answer after the thinking process finishes. This recovery implies the existence of an internal mechanism helping the model to detect errors and trigger self-correction, which we refer to as the <i>hidden critique ability</i>. Building on feature space analysis, we identify a highly interpretable <i>critique vector</i> representing this behavior. Extensive experiments across multiple model scales and families demonstrate that steering latent representations with this vector improves the model&rsquo;s error detection capability and enhances the performance of test-time scaling at no extra training cost. Our findings provide a valuable understanding of LRMs&rsquo; critique behavior, suggesting a promising direction to control and improve their self-verification mechanism.
+        </p>
+    </div>
+
+    <!-- Hidden self-correction -->
+    <div class="card">
+        <h2>Hidden Self-Correction</h2>
+        <p>
+            Natural mistakes followed by a recovery are rare, and labelling every reasoning step is expensive. So instead we <b>deliberately inject an arithmetic error</b> $e$ into the reasoning trace, right after the think token, and let the model keep thinking:
+        </p>
+        <div class="eq">$$f_{\text{LRM}}:(q,\langle\texttt{think}\rangle,e)\mapsto(\tilde{c},\langle\texttt{/think}\rangle,\tilde{a}).$$</div>
+        <p>
+            GPT-5 generates one error per question, which gives two benchmarks, <b>GSM8K-Error</b> and <b>MATH500-Error</b>. We then check the thinking conclusion and the final answer against the ground truth separately. This needs no per-step supervision.
+        </p>
+        <div class="fig">
+            <img src="assets/figures/main_observation.png" alt="Pie charts of thinking/answer correctness for R1-8B, R1-14B, R1-32B and Qwen3-4B on GSM8K-Error and MATH500-Error.">
+        </div>
+        <p class="caption">
+            How often the thinking and the final answer are each correct after error injection. The <b>light-blue</b> segments (&times; Thinking, &check; Answer) are runs where the reasoning stays corrupted but the answer is right.
+        </p>
+        <div class="stats">
+            <div class="stat"><span class="num">55&ndash;78%</span><span class="lbl">R1 models: hidden recovery on GSM8K-Error</span></div>
+            <div class="stat"><span class="num">41&ndash;59%</span><span class="lbl">R1 models: hidden recovery on MATH500-Error</span></div>
+            <div class="stat"><span class="num">&lt;6%</span><span class="lbl">R1 models: explicit corrections in the CoT</span></div>
+        </div>
+        <p>
+            Qwen3-4B backtracks explicitly much more often (42.7% on GSM8K-Error, 81.9% on MATH500-Error). It still recovers silently in 20.1% and 10.8% of cases, so the mechanism appears across model families.
+        </p>
+    </div>
+
+    <div class="card collapsible">
+        <h2>Ruling Out Alternative Explanations</h2>
+        <div class="collapsible-content">
+            <p><b>Is it memorization?</b> Recovery persists on a non-public, synthetic GSM8K-style dataset built with the same pipeline.</p>
+            <p><b>Does the model ignore the corrupted trace?</b> The &times; Think / &check; Answer pattern persists when the question is masked, so the model has to rely on the corrupted CoT. It also persists when the answer is forced to begin with &ldquo;Based on my thinking above&rdquo;.</p>
+            <p><b>Do natural CoTs trigger critique?</b> Rarely. On unmodified GSM8K and MATH500, recovery from a wrong CoT is 1.9% for R1-8B on GSM8K and below 1% everywhere else. Critique behavior shows up mainly when an error is actually present.</p>
+        </div>
+    </div>
+
+    <!-- Critique vector -->
+    <div class="card">
+        <h2>The Critique Vector</h2>
+        <p>
+            For 1,000 GSM8K training questions, we pair a <i>baseline</i> run (correct CoT, correct answer) with an <i>intervened</i> run (injected error, corrupted CoT, correct answer). Both runs give the same final answer. A linear probe on the answer-token activations still separates the two almost perfectly, both in-distribution and on out-of-distribution MATH500.
+        </p>
+        <div class="table-wrap">
+            <table>
+                <thead>
+                    <tr><th rowspan="2">Model</th><th class="group sep" colspan="2">GSM8K (ID)</th><th class="group sep" colspan="2">MATH500 (OOD)</th><th class="sep" rowspan="2">Best layer</th></tr>
+                    <tr><th class="sep">AUROC &uarr;</th><th>ECE &darr;</th><th class="sep">AUROC &uarr;</th><th>ECE &darr;</th></tr>
+                </thead>
+                <tbody>
+                    <tr><td>Qwen3-4B</td><td class="sep">1.000</td><td>0.002</td><td class="sep">1.000</td><td>0.026</td><td class="sep">21</td></tr>
+                    <tr><td>R1-8B</td><td class="sep">0.998</td><td>0.019</td><td class="sep">0.996</td><td>0.022</td><td class="sep">31</td></tr>
+                    <tr><td>R1-14B</td><td class="sep">1.000</td><td>0.003</td><td class="sep">0.998</td><td>0.012</td><td class="sep">28</td></tr>
+                    <tr><td>R1-32B</td><td class="sep">1.000</td><td>0.002</td><td class="sep">0.997</td><td>0.008</td><td class="sep">38</td></tr>
+                </tbody>
+            </table>
+        </div>
+        <p class="caption">Linear probes separate the self-correcting runs from the baseline runs.</p>
+
+        <p>
+            Because the separation is linear, we take the <b>difference in means</b> between the intervened and baseline activations at layer $\ell$. To steer, we add a scaled copy of it to the residual stream. A positive $\alpha$ amplifies the model's self-critique and a negative one suppresses it:
+        </p>
+        <div class="eq">$$v_{\ell}=\frac{1}{|\mathcal{Q}_{\text{train}}|}\sum_{q\in\mathcal{Q}_{\text{train}}}\Bigl(h_{\text{intervened}}^{(\ell)}(q)-h_{\text{baseline}}^{(\ell)}(q)\Bigr),\qquad h_{\text{steered}}^{(\ell)}=h^{(\ell)}+\alpha\,v_{\ell}.$$</div>
+
+        <h3>What the vector says: logit lens</h3>
+        <p>
+            Projecting $v_\ell$ onto the vocabulary shows tokens of reassessment and contrast, in English and in Chinese.
+        </p>
+        <div class="table-wrap">
+            <table>
+                <thead>
+                    <tr><th rowspan="2">Rank</th><th class="group sep" colspan="2">Qwen3-4B (layer 29)</th><th class="group sep" colspan="2">R1-32B (layer 57)</th></tr>
+                    <tr><th class="sep">Token</th><th>Logit</th><th class="sep">Token</th><th>Logit</th></tr>
+                </thead>
+                <tbody>
+                    <tr><td>1</td><td class="sep">wrongly</td><td>1.78</td><td class="sep">Wait</td><td>2.68</td></tr>
+                    <tr><td>2</td><td class="sep">Nope</td><td>1.72</td><td class="sep">但实际上 (But actually)</td><td>2.65</td></tr>
+                    <tr><td>3</td><td class="sep">而且还 (And also)</td><td>1.63</td><td class="sep">却 (But/Yet)</td><td>2.64</td></tr>
+                    <tr><td>4</td><td class="sep">really</td><td>1.61</td><td class="sep">however</td><td>2.60</td></tr>
+                    <tr><td>5</td><td class="sep">_that</td><td>1.60</td><td class="sep">but</td><td>2.58</td></tr>
+                    <tr><td>6</td><td class="sep">Actually</td><td>1.60</td><td class="sep">不过 (However)</td><td>2.57</td></tr>
+                    <tr><td>7</td><td class="sep">但却 (But yet)</td><td>1.59</td><td class="sep">Wait</td><td>2.55</td></tr>
+                    <tr><td>8</td><td class="sep"><code>?)\n\n</code></td><td>1.57</td><td class="sep">(</td><td>2.49</td></tr>
+                    <tr><td>9</td><td class="sep">oque</td><td>1.57</td><td class="sep">wait</td><td>2.41</td></tr>
+                    <tr><td>10</td><td class="sep">actually</td><td>1.56</td><td class="sep">However</td><td>2.41</td></tr>
+                </tbody>
+            </table>
+        </div>
+        <p class="caption">Top-10 tokens from the logit-lens projection of the critique vector.</p>
+    </div>
+
+    <!-- Error detection -->
+    <div class="card">
+        <h2>Steering for Error Detection</h2>
+        <p>
+            On ProcessBench (Olympiad-level math) and BIG-Bench Mistake (diverse logical tasks), the model is given a solution and has to find the wrong step. Error-detection accuracy rises steadily with the steering coefficient. Positive steering ($\alpha=1$) improves it by about <b>5% for every model</b> on ProcessBench, and negative steering lowers it.
+        </p>
+        <div class="tabs" role="tablist" data-tabs="detect">
+            <button class="selected" role="tab" data-panel="detect-pb">ProcessBench</button>
+            <button role="tab" data-panel="detect-bb">BIG-Bench Mistake</button>
+        </div>
+        <div class="tab-panel active" id="detect-pb">
+            <div class="fig"><img src="assets/figures/steer_processbench.png" alt="Error accuracy, correct accuracy and F1 on ProcessBench as a function of steering coefficient."></div>
+        </div>
+        <div class="tab-panel" id="detect-bb">
+            <div class="fig"><img src="assets/figures/steer_bigbench.png" alt="Error accuracy, correct accuracy and F1 on BIG-Bench Mistake as a function of steering coefficient."></div>
+        </div>
+        <p class="caption">
+            Error accuracy, correct accuracy and F1 as functions of the steering coefficient $\alpha$. The dashed line marks the unsteered baseline ($\alpha=0$).
+        </p>
+
+        <h3>Example: catching a subtle arithmetic slip (R1-32B)</h3>
+        <div class="qual">
+            <div class="head"><span class="dot"></span>Problem</div>
+            Expression: $(((7+2-4*-5)*(4+-3*-2-4))*((4+-2*8*3)*(8+-3*1*5)))=$ &nbsp; Target: 53592. Which calculation is incorrect?<br>
+            <span class="elide">The equation can be written as &ldquo;(A * B) * (C * D)&rdquo;&hellip;</span>
+            Let&rsquo;s calculate A = $(7+2-4*-5)=(7+2-(-20))=$ <mark class="err">$(7+2+20)=30$</mark>. B = 6. C = &minus;44. D = &minus;7.
+            Then, $(30*6)*(-44*-7)=180*308=55440$.
+        </div>
+        <div class="qual-grid">
+            <div class="qual baseline">
+                <div class="head"><span class="dot"></span>Baseline</div>
+                Calculating A = $(7+2-4*-5)$&hellip; $4*-5$ is $-20$&hellip; so $7+2+20$ equals $30$. That looks correct.<br>
+                <span class="elide">&hellip; [Checks B, C, and D] &hellip;</span><br>
+                Wait, is there any step that might have an error? &hellip; $7+2$ is $9$, minus $-20$ is <mark class="err">$9+20=30$. Correct.</mark>
+                <span class="outcome">✗ Misses the error</span>
+            </div>
+            <div class="qual positive">
+                <div class="head"><span class="dot"></span>Positive steering ($\alpha=1$)</div>
+                Calculating A = $(7+2-4*-5)$&hellip; $7+2+20=30$. That looks correct.<br>
+                <span class="elide">&hellip; [Checks B, C, and D] &hellip;</span><br>
+                Wait, let me double-check&hellip; <mark class="fix">Wait, hold on! $7+2$ is $9$, and subtracting $-20$ is adding $20$, so $9+20$ is $29$, not $30$. Oh!</mark>
+                <span class="outcome">✓ Finds and fixes the error</span>
+            </div>
+        </div>
+    </div>
+
+    <!-- Test-time scaling -->
+    <div class="card">
+        <h2>Test-Time Scaling with Critique Steering</h2>
+        <p>
+            Budget forcing appends &ldquo;Wait&rdquo; whenever the model tries to stop thinking. We let the models continue from the injected errors and score the final answers after 0&ndash;5 forced iterations, with positive, negative and no steering.
+        </p>
+        <div class="fig">
+            <img src="assets/figures/tts.png" alt="Accuracy versus number of Wait iterations for baseline, positive and negative steering across GSM8K-Error, MATH500-Error and BIG-Bench Mistake.">
+        </div>
+        <p class="caption">Accuracy against the number of budget-forcing iterations on GSM8K-Error, MATH500-Error and BIG-Bench Mistake.</p>
+        <ul>
+            <li><b>The critique vector steers recovery.</b> On GSM8K-Error, Qwen3-4B scores 77% at baseline. Positive steering raises this to nearly 90%, and negative steering lowers it to just above 50%.</li>
+            <li><b>Test-time scaling helps.</b> Appending &ldquo;Wait&rdquo; reliably improves accuracy across models and datasets.</li>
+            <li><b>The two are complementary.</b> Positive steering improves accuracy at every forcing iteration and negative steering lowers it. Explicit backtracking does not replace hidden critique.</li>
+        </ul>
+
+        <h3>Transfer to standard benchmarks</h3>
+        <p>The same GSM8K-Error-derived vector gives modest but consistent gains on unperturbed benchmarks.</p>
+        <div class="table-wrap">
+            <table>
+                <thead>
+                    <tr><th rowspan="2">Model</th><th class="group sep" colspan="3">AIME24</th><th class="group sep" colspan="3">AIME25</th><th class="group sep" colspan="3">GSM8K</th><th class="group sep" colspan="3">MATH500</th></tr>
+                    <tr>
+                        <th class="sep">&minus;1</th><th>0</th><th>+1</th>
+                        <th class="sep">&minus;1</th><th>0</th><th>+1</th>
+                        <th class="sep">&minus;1</th><th>0</th><th>+1</th>
+                        <th class="sep">&minus;1</th><th>0</th><th>+1</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr><td>Qwen3-4B</td>
+                        <td class="sep">50.0</td><td class="best">56.7</td><td class="best">56.7</td>
+                        <td class="sep">50.0</td><td>46.7</td><td class="best">53.3</td>
+                        <td class="sep">50.8</td><td>57.7</td><td class="best">62.9</td>
+                        <td class="sep">92.2</td><td class="best">93.0</td><td>92.8</td></tr>
+                    <tr><td>R1-8B</td>
+                        <td class="sep">40.0</td><td class="best">50.0</td><td class="best">50.0</td>
+                        <td class="sep best">30.0</td><td class="best">30.0</td><td class="best">30.0</td>
+                        <td class="sep">69.4</td><td class="best">70.7</td><td class="best">70.7</td>
+                        <td class="sep">89.2</td><td class="best">89.9</td><td class="best">89.9</td></tr>
+                    <tr><td>R1-14B</td>
+                        <td class="sep">56.7</td><td>56.7</td><td class="best">60.0</td>
+                        <td class="sep">36.7</td><td class="best">46.7</td><td class="best">46.7</td>
+                        <td class="sep">68.6</td><td class="best">71.3</td><td>70.3</td>
+                        <td class="sep">92.8</td><td>94.2</td><td class="best">95.6</td></tr>
+                    <tr><td>R1-32B</td>
+                        <td class="sep">60.0</td><td>63.3</td><td class="best">66.7</td>
+                        <td class="sep">50.0</td><td class="best">53.3</td><td class="best">53.3</td>
+                        <td class="sep">89.1</td><td>89.2</td><td class="best">89.6</td>
+                        <td class="sep">94.2</td><td>94.3</td><td class="best">95.0</td></tr>
+                </tbody>
+            </table>
+        </div>
+        <p class="caption">Accuracy (%) at steering coefficient $\alpha\in\{-1,0,+1\}$. Bold marks the best value in each dataset block.</p>
+    </div>
+
+    <!-- Conclusion -->
+    <div class="card">
+        <h2>Conclusion</h2>
+        <p>
+            LRMs silently recover from mistakes injected into their CoTs and give correct final answers without ever verbalizing the detection or the correction. Their activations separate these runs from ordinary ones, and from that separation we extract a <b>critique vector</b> whose meaning the logit lens confirms. Steering with the vector controls error detection across benchmarks and models. Combined with test-time scaling, it further improves correction performance. Open questions include whether this ability comes from pre-training or post-training, and what it means for CoT faithfulness and alignment, since models can correct errors without saying so.
+        </p>
+    </div>
+
+    <!-- Citation -->
+    <div class="card">
+        <h2>Citation</h2>
+        <div class="cite-wrap">
+            <button class="copy-btn" type="button">Copy</button>
+<pre><code id="bibtex">@inproceedings{phan2026decoding,
+  title={Decoding the Critique Mechanism in Large Reasoning Models},
+  author={Phan, Hoang and Nguyen, Quang H. and Le, Hung T. Q. and Chen, Xiusi and Ji, Heng and Doan, Khoa D.},
+  booktitle={Advances in Neural Information Processing Systems},
+  year={2026}
+}</code></pre>
+        </div>
+    </div>
+
+    <footer>
+        Page design inspired by the <a href="https://d4rt-paper.github.io/" target="_blank" rel="noopener">D4RT project page</a>.
+    </footer>
+
+    <script>
+        // Tabs
+        document.querySelectorAll('.tabs').forEach(function (group) {
+            group.addEventListener('click', function (e) {
+                var btn = e.target.closest('button[data-panel]');
+                if (!btn) return;
+                group.querySelectorAll('button').forEach(function (b) {
+                    b.classList.toggle('selected', b === btn);
+                    document.getElementById(b.dataset.panel).classList.toggle('active', b === btn);
+                });
+            });
+        });
+
+        // Collapsible cards
+        document.querySelectorAll('.collapsible h2').forEach(function (h) {
+            h.addEventListener('click', function () { h.parentElement.classList.toggle('active'); });
+        });
+
+        // Copy BibTeX
+        document.querySelectorAll('.copy-btn').forEach(function (btn) {
+            btn.addEventListener('click', function () {
+                var text = btn.parentElement.querySelector('code').textContent;
+                navigator.clipboard.writeText(text).then(function () {
+                    btn.textContent = 'Copied';
+                    setTimeout(function () { btn.textContent = 'Copy'; }, 1500);
+                });
+            });
+        });
+    </script>
+</body>
+</html>
