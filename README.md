@@ -1,6 +1,6 @@
 <div align="center">
 
-# Decoding the Critique Mechanism in Large Reasoning Models
+# [NeurIPS 2026] Decoding the Critique Mechanism in Large Reasoning Models
 
 [![Paper](https://img.shields.io/badge/arXiv-2603.16331-b31b1b.svg)](https://arxiv.org/abs/2603.16331)
 [![Project Page](https://img.shields.io/badge/Project-Page-2ea44f.svg)](https://mail-research.github.io/lrm-critique-vectors/)
@@ -41,13 +41,13 @@ OPENAI_API_KEY="YOUR_OPENAI_API_KEY"  # Used for error injection in intervention
 
 ```
 src/
-├── activation/            # activation extraction + linear probes (Table 2)
-├── intervention/          # error injection + recovery analysis (Table 1, Figure 2)
-├── steer/                 # critique-vector steering on error detection (Figure 3a, 3b)
+├── activation/            # activation extraction + linear probes
+├── intervention/          # baseline accuracy + error injection & recovery analysis
+├── steer/                 # critique-vector steering on error detection
 │   ├── big_bench_mistake/
 │   └── process_bench/
-├── tts_bigbench/          # steered test-time scaling on BIG-Bench Mistake (Figure 5)
-├── tts_synthetic/         # steered test-time scaling on synthetic datasets (Figure 5)
+├── tts_bigbench/          # steered test-time scaling on BIG-Bench Mistake
+├── tts_synthetic/         # steered test-time scaling on synthetic datasets
 └── utils/                 # shared utilities
 
 data/
@@ -75,10 +75,10 @@ GPU=0,1 bash scripts/intervention.sh
 
 All experiments run on **2× NVIDIA H100 GPUs**. Set `GPU=0,1` to select devices.
 
-Below we organize the main experiments by their corresponding **tables and figures in the paper**, with a short description, the core command template, and the full script used for reproduction.
+Below we organize the main experiments by topic, with a short description, the core command template, and the full script used for reproduction.
 
 <details>
-<summary><strong>Table 1 — Baseline Accuracy</strong></summary>
+<summary><strong>Baseline Accuracy</strong></summary>
 
 Measures baseline performance of LRMs (Qwen3-4B, DeepSeek-R1-Distill 8B/14B/32B) on GSM8K and MATH-500.
 
@@ -101,7 +101,7 @@ GPU=0,1 bash scripts/baseline.sh
 </details>
 
 <details>
-<summary><strong>Figure 2 — Error Intervention & Recovery</strong></summary>
+<summary><strong>Error Intervention & Recovery</strong></summary>
 
 Injects arithmetic errors into intermediate reasoning steps and measures whether the model recovers the correct final answer — evidence of an internal critique mechanism.
 
@@ -125,7 +125,7 @@ GPU=0,1 bash scripts/intervention.sh
 </details>
 
 <details>
-<summary><strong>Table 2 — Activation Analysis & Linear Probe</strong></summary>
+<summary><strong>Activation Analysis & Linear Probe</strong></summary>
 
 Extracts hidden activations and trains linear probes to identify the critique direction in latent space.
 
@@ -145,7 +145,7 @@ GPU=0,1 bash scripts/activation.sh
 </details>
 
 <details>
-<summary><strong>Figure 3 — Steering on Error Detection Tasks</strong></summary>
+<summary><strong>Steering on Error Detection Tasks</strong></summary>
 
 Steers model representations along the critique vector on error detection benchmarks across a range of coefficients. Two dataset options: **ProcessBench** (GSM8K, MATH, OlympiadBench, OmniMath) and **BIG-Bench Mistake** (multistep arithmetic, word sorting, Dyck languages, logical deduction, tracking shuffled objects).
 
@@ -163,17 +163,17 @@ python src/steer/main.py \
 Full scripts to reproduce:
 
 ```bash
-# ProcessBench (Figure 3a)
+# ProcessBench
 GPU=0,1 bash scripts/steer_processbench.sh
 
-# BIG-Bench Mistake (Figure 3b)
+# BIG-Bench Mistake
 GPU=0,1 bash scripts/steer_bigbench.sh
 ```
 
 </details>
 
 <details>
-<summary><strong>Figure 5 — Steering on Test-Time Scaling</strong></summary>
+<summary><strong>Steering on Test-Time Scaling</strong></summary>
 
 Applies critique steering during test-time scaling (stacked reasoning) to boost accuracy without extra training.
 
@@ -212,7 +212,7 @@ GPU=0,1 bash scripts/steer_tts_synthetic.sh
 </details>
 
 <details>
-<summary><strong>Figure 10 — Layer Ablation (Appendix)</strong></summary>
+<summary><strong>Layer Ablation</strong></summary>
 
 Ablates steering across different layers to identify the most effective intervention point.
 
